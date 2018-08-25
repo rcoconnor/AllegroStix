@@ -12,11 +12,14 @@
 #include "Systems.hpp"
 #include "Player.hpp"
 #include "Target.hpp"
-#include <string.h>
+#include <string>
 
 
 ALLEGRO_BITMAP* loadBitmapAtSize(const char* fileName, int w, int h);
 void loadLevel(ALLEGRO_BITMAP* grassFile, int width, int height);
+bool didCollide(Player *user, Target *stick);
+
+
 
 
 int main(int argc, char** argv) {
@@ -25,19 +28,40 @@ int main(int argc, char** argv) {
     System.setup();
     
     ALLEGRO_BITMAP* grassImage;
-    grassImage = loadBitmapAtSize("grass03.png", 50, 50);
+    grassImage = System.loadBitmapAtSize("grass03.png", 250, 250);
     
-    Player user("Chimp.bmp");
-    Target stick("banana2.png");
+    Player user("Chimp.bmp", &System);
+    Target stick("banana2.png", &System);
+    
+    std::string scoreString;
+    std::string timeString;
     
     ALLEGRO_EVENT event;
     bool running = true;
+    bool mainMenu = true;
+    
     while (running == true) {
+        if (mainMenu == true) {
+            System.mainMenu();
+            mainMenu = false;
+        }
+        
+        al_start_timer(System.timer);
+        if (user.getTime() < 0) {
+            System.gameOver(); 
+            al_stop_timer(System.timer);
+            user.resetPos(); 
+            user.resetTime();
+            user.resetScore(); 
+        }
         
         if (!al_is_event_queue_empty(System.queue)) {
             al_wait_for_event(System.queue, &event);
             if (event.type == ALLEGRO_EVENT_DISPLAY_CLOSE) {
                 running = false;
+            }
+            if (event.type == ALLEGRO_EVENT_TIMER) {
+                user.deductTime();
             }
         }
 
@@ -45,15 +69,27 @@ int main(int argc, char** argv) {
         // handle keyboard input //;
         ALLEGRO_KEYBOARD_STATE keyState;
 
+        
         al_get_keyboard_state(&keyState);
-        user.handleMovement(keyState); 
+        user.handleMovement(keyState);
+        if (didCollide(&user, &stick)) {
+            stick.createRanPos();
+            user.incrementScore(); 
+        };
         
-        // load in the level
+        // load the level and draw the elements
         loadLevel(grassImage, System.getScreenWidth(), System.getScreenHeight());
+        user.drawToScreen(System.display);
+        stick.drawStick(System.display);
         
-        // draw the player to the screen
-        user.drawToScreen();
-        stick.drawStick(); 
+        
+        // draw the score
+        scoreString = "Score: ";
+        scoreString += std::to_string(user.getScore());
+        al_draw_text(System.font, al_map_rgb(255, 255, 255), 383, 10, 0, scoreString.data());
+        timeString = std::to_string(user.getTime());
+        al_draw_text(System.font, al_map_rgb(255, 255, 255), 10, 10, 0, timeString.data());
+        
         
         al_flip_display();
     }
@@ -63,12 +99,24 @@ int main(int argc, char** argv) {
     
 }
 
+char* getScoreString(Player* playerPtr);
+
+
+bool didCollide(Player *user, Target *stick) {
+    // handle collision //
+    if (user->colBoxPtr->x < stick->colBoxPtr->x + stick->colBoxPtr->width &&
+        user->colBoxPtr->x + user->colBoxPtr->width > stick->colBoxPtr->x &&
+        user->colBoxPtr->y < stick->colBoxPtr->y + stick->colBoxPtr->height &&
+        user->colBoxPtr->y + user->colBoxPtr->height > stick->colBoxPtr->y) {
+            return true;
+    }
+    return false;
+}
+
 
 void loadLevel(ALLEGRO_BITMAP* grassImage, int displayWidth, int displayHeight) {
-    
-    
-    for (int i = 0; i < displayWidth; i += displayWidth / 10) {
-        for (int j = 0; j < displayHeight; j+= displayHeight / 10) {
+    for (int i = 0; i < displayWidth; i += displayWidth / 2) {
+        for (int j = 0; j < displayHeight; j+= displayHeight / 2) {
             al_draw_bitmap(grassImage, i, j, 0);
         }
     }
